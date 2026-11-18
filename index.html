@@ -69,10 +69,21 @@
 </div>
 
 <div class="panel">
+  <h3>자반시 · <span id="memoT" style="color:var(--acc)"></span></h3>
+  <textarea id="memo" style="height:130px;font-size:15px;font-family:inherit" placeholder="이 대형에 대한 스스로 피드백을 적어 보세요"></textarea>
+  <div class="bar" style="margin-top:8px">
+    <button class="b" id="cpMemo">이 대형 자반시 복사</button>
+    <button class="b" id="cpAll">전체 자반시 복사</button>
+    <span class="hint" id="memoMsg" style="margin:0"></span>
+  </div>
+</div>
+
+<div class="panel">
   <h3>이미지로 저장</h3>
   <div class="row">
     <button class="b" id="imgCur">현재 대형</button>
     <button class="b" id="imgAll">전체 대형</button>
+    <label class="sw"><input type="checkbox" id="memoInc"> 복습용: 자반시도 함께 넣기</label>
     <span class="hint" id="imgMsg"></span>
   </div>
 </div>
@@ -138,6 +149,8 @@ function render(){
     g.addEventListener('pointerdown',e=>startDrag(e,m))});
   // panels
   $('fname').value=cur().name;
+  $('memoT').textContent=cur().name||'(이름 없음)';
+  if(document.activeElement!==$('memo'))$('memo').value=cur().memo||'';
   const m=cur().markers.find(x=>x.id===selId);
   $('sel').style.display=m?'block':'none';
   if(m&&document.activeElement!==$('lab'))$('lab').value=m.label;
@@ -170,7 +183,7 @@ function startDrag(e,m){
 $('lab').oninput=e=>{const m=cur().markers.find(x=>x.id===selId);if(m){m.label=e.target.value||'?';save();render()}};
 $('delM').onclick=()=>{cur().markers=cur().markers.filter(x=>x.id!==selId);selId=null;save();render()};
 $('fname').oninput=e=>{cur().name=e.target.value;save();
-  const tabs=$('tabs').querySelectorAll('.tab:not(.add)');tabs[idx()].textContent=cur().name||'(이름 없음)'};
+  const tabs=$('tabs').querySelectorAll('.tab:not(.add)');tabs[idx()].textContent=cur().name||'(이름 없음)';$('memoT').textContent=cur().name||'(이름 없음)'};
 $('dup').onclick=()=>{const c=cur();const f={id:uid(),name:c.name+' 복사',markers:c.markers.map(m=>({...m,id:uid()}))};
   S.formations.splice(idx()+1,0,f);S.active=f.id;selId=null;save();render()};
 $('delF').onclick=()=>{if(S.formations.length<2)return;
@@ -190,6 +203,15 @@ $('imp').onclick=()=>{try{const o=JSON.parse($('io').value);
 $('myname').value=S.myName;
 $('myname').oninput=e=>{S.myName=e.target.value.trim();save()};
 
+$('memo').oninput=e=>{cur().memo=e.target.value;save()};
+const sayM=t=>{$('memoMsg').textContent=t;setTimeout(()=>$('memoMsg').textContent='',2500)};
+async function copyText(t){
+  try{await navigator.clipboard.writeText(t);return true}catch(e){}
+  try{const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+    const ok=document.execCommand('copy');ta.remove();return ok}catch(e){return false}}
+const memoBlock=f=>'['+(f.name||'이름 없음')+']\n'+((f.memo||'').trim()||'(작성한 내용 없음)');
+$('cpMemo').onclick=async()=>{sayM(await copyText(memoBlock(cur()))?'복사됐어요':'복사하지 못했어요')};
+$('cpAll').onclick=async()=>{sayM(await copyText(S.formations.map(memoBlock).join('\n\n'))?'전체를 복사했어요':'복사하지 못했어요')};
 let bgData=null;
 async function getBg(){if(bgData)return bgData;const h=document.querySelector('#svg image').getAttribute('href');
   if(h.startsWith('data:'))return bgData=h;
@@ -200,9 +222,20 @@ function fsvg(f,bg){let o=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" 
   f.markers.forEach(m=>{const z=fs(m.label);
     o+=`<circle cx="${m.x}" cy="${m.y}" r="${R}" fill="#2f8cff" stroke="#fff" stroke-width="5"/><text x="${m.x}" y="${m.y+z*.33}" text-anchor="middle" font-size="${z}" font-weight="700" fill="#fff" font-family="sans-serif">${esc(m.label)}</text>`});
   return o+`<text x="36" y="76" font-size="56" font-weight="700" fill="#ffd400" font-family="sans-serif">${esc(f.name)}</text></svg>`}
-async function toCanvas(f){const bg=await getBg();const img=new Image();
+async function toCanvas(f,withMemo){
+  const bg=await getBg();const img=new Image();
   img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(fsvg(f,bg));await img.decode();
-  const c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').drawImage(img,0,0);return c}
+  const c=document.createElement('canvas');c.width=W;
+  const PAD=70,FB=44,LH=66;let lines=[],extra=0;
+  if(withMemo){const m=c.getContext('2d');m.font='400 '+FB+'px sans-serif';
+    ((f.memo||'').trim()||'(작성한 내용 없음)').split('\n').forEach(par=>{let cur='';
+      for(const ch of par){if(m.measureText(cur+ch).width>W-2*PAD){lines.push(cur);cur=ch}else cur+=ch}lines.push(cur)});
+    extra=PAD+80+lines.length*LH+PAD}
+  c.height=H+extra;const g=c.getContext('2d');g.drawImage(img,0,0);
+  if(extra){g.fillStyle='#1b1b1d';g.fillRect(0,H,W,extra);g.textBaseline='middle';
+    g.fillStyle='#ffd400';g.font='700 52px sans-serif';g.fillText('자반시',PAD,H+PAD+20);
+    g.fillStyle='#eeeeee';g.font='400 '+FB+'px sans-serif';lines.forEach((l,i)=>g.fillText(l,PAD,H+PAD+80+i*LH+LH/2))}
+  return c}
 const toBlob=(c,t,q)=>new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(),t,q));
 async function saveBlob(name,blob){
   let d=null;
@@ -216,14 +249,14 @@ function makePdf(pg){
   const enc=new TextEncoder(),parts=[],offs=[];let len=0;
   const push=x=>{const u=typeof x==='string'?enc.encode(x):x;parts.push(u);len+=u.length};
   const obj=(id,fn)=>{offs[id]=len;push(id+' 0 obj\n');fn();push('\nendobj\n')};
-  const n=pg.length,PW=842,PH=Math.round(842*H/W),total=3+3*n;
+  const n=pg.length,PW=842,total=3+3*n;
   push('%PDF-1.4\n');
   obj(1,()=>push('<< /Type /Catalog /Pages 2 0 R >>'));
   obj(2,()=>push('<< /Type /Pages /Count '+n+' /Kids ['+pg.map((_,i)=>(3+3*i)+' 0 R').join(' ')+'] >>'));
-  pg.forEach((j,i)=>{const p=3+3*i,c=p+1,im=p+2,cs='q '+PW+' 0 0 '+PH+' 0 0 cm /Im0 Do Q';
+  pg.forEach((j,i)=>{const p=3+3*i,c=p+1,im=p+2,PH=Math.round(PW*j.h/W),cs='q '+PW+' 0 0 '+PH+' 0 0 cm /Im0 Do Q';
     obj(p,()=>push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+PW+' '+PH+'] /Resources << /XObject << /Im0 '+im+' 0 R >> >> /Contents '+c+' 0 R >>'));
     obj(c,()=>push('<< /Length '+cs.length+' >>\nstream\n'+cs+'\nendstream'));
-    obj(im,()=>{push('<< /Type /XObject /Subtype /Image /Width '+W+' /Height '+H+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+j.length+' >>\nstream\n');push(j);push('\nendstream')})});
+    obj(im,()=>{push('<< /Type /XObject /Subtype /Image /Width '+W+' /Height '+j.h+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+j.b.length+' >>\nstream\n');push(j.b);push('\nendstream')})});
   const xo=len;
   push('xref\n0 '+total+'\n0000000000 65535 f \n');
   for(let id=1;id<total;id++)push(String(offs[id]).padStart(10,'0')+' 00000 n \n');
@@ -233,7 +266,7 @@ let shown=[];
 async function showImgs(list){
   $('imgMsg').textContent='만드는 중…';
   try{const box=$('ovb');box.innerHTML='';shown=[];
-    for(const f of list){const c=await toCanvas(f);const png=await toBlob(c,'image/png');shown.push({f,c,png});
+    for(const f of list){const c=await toCanvas(f,$('memoInc').checked);const png=await toBlob(c,'image/png');shown.push({f,c,png});
       const u=URL.createObjectURL(png);
       const w=document.createElement('div');w.style.marginBottom='18px';
       w.innerHTML='<div class="row" style="justify-content:space-between;margin-bottom:6px"><b style="color:#ffd400"></b><button class="b">PNG 저장</button></div><img style="width:100%;border-radius:8px;display:block">';
@@ -244,7 +277,7 @@ async function showImgs(list){
   catch(e){$('imgMsg').textContent='이미지를 만들지 못했어요'}}
 $('pdfB').onclick=async()=>{
   if(!shown.length)return;$('pdfB').textContent='PDF 만드는 중…';
-  try{const pg=[];for(const x of shown){const b=await toBlob(x.c,'image/jpeg',.92);pg.push(new Uint8Array(await b.arrayBuffer()))}
+  try{const pg=[];for(const x of shown){const b=await toBlob(x.c,'image/jpeg',.92);pg.push({b:new Uint8Array(await b.arrayBuffer()),h:x.c.height})}
     await saveBlob((shown.length>1?'대형마커보드':safe(shown[0].f.name))+'.pdf',makePdf(pg))}
   catch(e){}
   $('pdfB').textContent='PDF 저장'};
