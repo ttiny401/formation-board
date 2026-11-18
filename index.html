@@ -27,6 +27,15 @@
   label.sw{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--mut)}
   .hint{color:var(--mut);font-size:13px;margin:4px 2px}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .vgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .vcard{background:#101012;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .vthumb{position:relative;aspect-ratio:16/9;background:#000;cursor:pointer}
+  .vthumb img,.vthumb iframe{position:absolute;inset:0;width:100%;height:100%;border:0;object-fit:cover}
+  .vplay{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:64px;height:44px;border-radius:12px;border:0;background:rgba(255,0,0,.92);color:#fff;font-size:20px;cursor:pointer}
+  .vph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:14px;background:#161618}
+  .vinfo{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px}
+  .vinfo b{font-size:15px}
+  .vinfo a{color:#9cf;font-size:13px;text-decoration:none;white-space:nowrap}
   h3{margin:0 0 8px;font-size:14px;color:var(--mut);font-weight:600}
 </style>
 </head>
@@ -86,6 +95,16 @@
     <label class="sw"><input type="checkbox" id="memoInc"> 복습용: 자반시도 함께 넣기</label>
     <span class="hint" id="imgMsg"></span>
   </div>
+  <div class="row" style="margin-top:10px">
+    <span class="hint" style="margin:0;white-space:nowrap">PDF 파일명에 쓸 내 이름</span>
+    <input type="text" id="fileName" maxlength="12" placeholder="예: 김시은">
+  </div>
+  <div class="hint" id="fnPrev" style="margin:6px 2px 0"></div>
+</div>
+
+<div class="panel" id="vidP">
+  <h3>리허설 영상</h3>
+  <div class="vgrid" id="vids"></div>
 </div>
 
 <div id="ov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9;overflow:auto;padding:12px">
@@ -198,10 +217,18 @@ $('cp').onclick=async()=>{if(!$('io').value)$('io').value=JSON.stringify(S);
 $('imp').onclick=()=>{try{const o=JSON.parse($('io').value);
   if(!o.formations||!o.formations.length)throw 0;
   o.formations.forEach(f=>{f.id=f.id||uid();f.markers=(f.markers||[]).map(m=>({id:m.id||uid(),label:String(m.label??'?'),x:+m.x,y:+m.y}))});
-  S={myName:typeof o.myName==='string'?o.myName:S.myName,formations:o.formations,active:o.active&&o.formations.some(f=>f.id===o.active)?o.active:o.formations[0].id};selId=null;$('myname').value=S.myName;save();render();say('가져왔어요')}
+  S={fileName:typeof o.fileName==='string'?o.fileName:S.fileName,fnLocked:o.fnLocked??S.fnLocked,myName:typeof o.myName==='string'?o.myName:S.myName,formations:o.formations,active:o.active&&o.formations.some(f=>f.id===o.active)?o.active:o.formations[0].id};selId=null;$('myname').value=S.myName;$('fileName').value=S.fileName||'';updFn();save();render();say('가져왔어요')}
   catch(e){say('형식이 올바르지 않아요')}};
 $('myname').value=S.myName;
-$('myname').oninput=e=>{S.myName=e.target.value.trim();save()};
+const PFX='대형서기능력시험';
+const pdfName=(review,one)=>PFX+(review?'_자반시포함':'')+(S.fileName?'_'+safe(S.fileName):'')+(one?'_'+safe(one):'')+'.pdf';
+function updFn(){const r=$('memoInc').checked;$('fnPrev').textContent=S.fileName?('PDF 파일명: '+pdfName(r,'')):('이름을 적으면 PDF 파일명이 \''+PFX+(r?'_자반시포함':'')+'_이름.pdf\'로 저장돼요')}
+$('memoInc').addEventListener('change',updFn);
+$('myname').oninput=e=>{S.myName=e.target.value.trim();
+  if(!S.fnLocked){S.fileName=(S.myName&&S.myName!=='나')?S.myName:'';$('fileName').value=S.fileName;updFn()}
+  save()};
+$('myname').onchange=()=>{if(S.myName&&S.myName!=='나'){S.fnLocked=true;save()}};
+$('fileName').oninput=e=>{S.fileName=e.target.value.trim();S.fnLocked=true;updFn();save()};
 
 $('memo').oninput=e=>{cur().memo=e.target.value;save()};
 const sayM=t=>{$('memoMsg').textContent=t;setTimeout(()=>$('memoMsg').textContent='',2500)};
@@ -263,7 +290,8 @@ function makePdf(pg){
   push('trailer\n<< /Size '+total+' /Root 1 0 R >>\nstartxref\n'+xo+'\n%%EOF');
   return new Blob(parts,{type:'application/pdf'})}
 let shown=[];
-async function showImgs(list){
+let shownCur=false;
+async function showImgs(list,isCur){shownCur=!!isCur;
   $('imgMsg').textContent='만드는 중…';
   try{const box=$('ovb');box.innerHTML='';shown=[];
     for(const f of list){const c=await toCanvas(f,$('memoInc').checked);const png=await toBlob(c,'image/png');shown.push({f,c,png});
@@ -278,12 +306,36 @@ async function showImgs(list){
 $('pdfB').onclick=async()=>{
   if(!shown.length)return;$('pdfB').textContent='PDF 만드는 중…';
   try{const pg=[];for(const x of shown){const b=await toBlob(x.c,'image/jpeg',.92);pg.push({b:new Uint8Array(await b.arrayBuffer()),h:x.c.height})}
-    await saveBlob((shown.length>1?'대형마커보드':safe(shown[0].f.name))+'.pdf',makePdf(pg))}
+    await saveBlob(pdfName($('memoInc').checked,shownCur?shown[0].f.name:''),makePdf(pg))}
   catch(e){}
   $('pdfB').textContent='PDF 저장'};
-$('imgCur').onclick=()=>showImgs([cur()]);
+$('imgCur').onclick=()=>showImgs([cur()],true);
 $('imgAll').onclick=()=>showImgs(S.formations);
 $('ovx').onclick=()=>{$('ov').style.display='none'};
+const VIDEOS=[
+  {title:'드라이 리허설',url:''},
+  {title:'1차 리허설',url:'https://youtu.be/0-LsGG15fwA'},
+  {title:'2차 리허설',url:'https://youtu.be/LrojFREQfhM'}];
+const ytId=u=>{const m=(u||'').match(/(?:youtu\.be\/|v=|embed\/)([\w-]{11})/);return m?m[1]:null};
+function renderVids(){const box=$('vids');box.innerHTML='';
+  VIDEOS.forEach(v=>{const id=ytId(v.url);
+    const card=document.createElement('div');card.className='vcard';
+    const th=document.createElement('div');th.className='vthumb';
+    const info=document.createElement('div');info.className='vinfo';
+    const t=document.createElement('b');t.textContent=v.title;info.appendChild(t);
+    if(id){
+      const im=document.createElement('img');im.alt='';im.loading='lazy';im.src='https://i.ytimg.com/vi/'+id+'/hqdefault.jpg';
+      im.onerror=()=>{im.style.display='none'};th.appendChild(im);
+      const pb=document.createElement('button');pb.className='vplay';pb.type='button';pb.setAttribute('aria-label',v.title+' 재생');pb.textContent='▶';th.appendChild(pb);
+      th.onclick=()=>{th.onclick=null;th.innerHTML='';const f=document.createElement('iframe');
+        f.src='https://www.youtube-nocookie.com/embed/'+id+'?autoplay=1&rel=0';
+        f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';f.allowFullscreen=true;th.appendChild(f)};
+      const a=document.createElement('a');a.href='https://youtu.be/'+id;a.target='_blank';a.rel='noopener noreferrer';a.textContent='YouTube에서 열기 ↗';info.appendChild(a);
+    }else{
+      th.style.cursor='default';const ph=document.createElement('div');ph.className='vph';ph.textContent='링크 준비 중';th.appendChild(ph);
+      const a=document.createElement('span');a.className='hint';a.style.margin='0';a.textContent='곧 추가돼요';info.appendChild(a)}
+    card.appendChild(th);card.appendChild(info);box.appendChild(card)})}
+$('fileName').value=S.fileName||'';updFn();renderVids();
 render();
 </script>
 </body>
