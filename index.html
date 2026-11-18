@@ -36,6 +36,10 @@
   .vinfo{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px}
   .vinfo b{font-size:15px}
   .vinfo a{color:#9cf;font-size:13px;text-decoration:none;white-space:nowrap}
+  .guide{background:#101012;border:1px dashed #444;border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:13px;color:#c4c4c4;line-height:1.55}
+  .guide b{color:var(--acc);margin-right:8px;font-weight:700}
+  .guide .ex{margin-top:6px;padding-top:6px;border-top:1px solid #2c2c2e}
+  .guide .ex b{display:block;margin:0 0 2px}
   h3{margin:0 0 8px;font-size:14px;color:var(--mut);font-weight:600}
 </style>
 </head>
@@ -79,7 +83,12 @@
 
 <div class="panel">
   <h3>자반시 · <span id="memoT" style="color:var(--acc)"></span></h3>
-  <textarea id="memo" style="height:210px;font-size:15px;font-family:inherit" placeholder="x:xx_유튜브 영상 기준 / x:xx_마이 영상 기준 / x:xx_승진 영상 기준&#10;디테일 + 액팅 + 본인이 대형을 맞게 섰는지 피드백&#10;&#10;예시:&#10;x:xx_마이 영상 기준&#10;스쿠비두 하고 나서 고개 내려야 함. 내가 제일 앞 사람이니까 대형 숫자 보고 잘 서줘야 함."></textarea>
+  <div class="guide">
+    <div><b>양식</b>x:xx_유튜브 영상 기준 / x:xx_마이 영상 기준 / x:xx_승진 영상 기준</div>
+    <div><b>내용</b>디테일 + 액팅 + 본인이 대형을 맞게 섰는지 피드백</div>
+    <div class="ex"><b>예시</b>x:xx_마이 영상 기준<br>스쿠비두 하고 나서 고개 내려야 함. 내가 제일 앞 사람이니까 대형 숫자 보고 잘 서줘야 함.</div>
+  </div>
+  <textarea id="memo" style="height:150px;font-size:15px;font-family:inherit" placeholder="여기에 작성하세요"></textarea>
   <div class="bar" style="margin-top:8px">
     <button class="b" id="cpMemo">이 대형 자반시 복사</button>
     <button class="b" id="cpAll">전체 자반시 복사</button>
