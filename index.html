@@ -247,7 +247,10 @@ async function copyText(t){
     const ok=document.execCommand('copy');ta.remove();return ok}catch(e){return false}}
 const memoBlock=f=>'['+(f.name||'이름 없음')+']\n'+((f.memo||'').trim()||'(작성한 내용 없음)');
 $('cpMemo').onclick=async()=>{sayM(await copyText(memoBlock(cur()))?'복사됐어요':'복사하지 못했어요')};
-$('cpAll').onclick=async()=>{sayM(await copyText(S.formations.map(memoBlock).join('\n\n'))?'전체를 복사했어요':'복사하지 못했어요')};
+$('cpAll').onclick=async()=>{
+  const list=S.formations.filter(f=>(f.memo||'').trim());
+  if(!list.length){sayM('작성한 자반시가 없어요');return}
+  sayM(await copyText(list.map(memoBlock).join('\n\n'))?'작성한 '+list.length+'개 대형을 복사했어요':'복사하지 못했어요')};
 let bgData=null;
 async function getBg(){if(bgData)return bgData;const h=document.querySelector('#svg image').getAttribute('href');
   if(h.startsWith('data:'))return bgData=h;
